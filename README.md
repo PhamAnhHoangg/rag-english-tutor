@@ -7,9 +7,10 @@ Later this becomes the core of a full language study app.
 ## Quick start
 
 ```bash
+conda create -n rag python=3.11 -y && conda activate rag   # fresh env: avoids clashes with base Anaconda packages
 docker compose up -d                 # Qdrant + Ollama
 docker exec -it ollama ollama pull qwen2.5:7b
-pip install -e ".[dev,ml,serve]"
+pip install -e ".[dev,ml]"           # add ,serve for the API and ,eval for MLflow + Ragas later
 python scripts/ingest.py --limit 2000 --chunks-only   # quick look, writes data/chunks.jsonl
 python scripts/ingest.py --limit 2000                 # small index for the baseline
 python scripts/ingest.py                              # everything (Wiktionary is ~2 GB)
