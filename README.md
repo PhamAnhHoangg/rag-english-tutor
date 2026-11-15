@@ -18,6 +18,8 @@ uvicorn tutor.api:app --reload       # POST /ask {"question": "..."}
 pytest
 ```
 
+Wikimedia asks API clients to identify themselves. Set `RAG_TUTOR_CONTACT` to a URL or email (for example your repo URL) before ingesting, and it is added to the User-Agent.
+
 ## Layout
 
 | Path | What it holds |

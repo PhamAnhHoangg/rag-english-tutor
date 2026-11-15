@@ -5,7 +5,10 @@ the download helpers stream files to data/raw/.
 """
 import bz2
 import json
+import os
 import re
+import sys
+import time
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 
@@ -17,7 +20,48 @@ KAIKKI_URL = "https://kaikki.org/dictionary/English/kaikki.org-dictionary-Englis
 TATOEBA_URL = "https://downloads.tatoeba.org/exports/per_language/eng/eng_sentences.tsv.bz2"
 WIKIBOOKS_API = "https://en.wikibooks.org/w/api.php"
 WIKIBOOKS_PREFIX = "English Grammar"
-USER_AGENT = "rag-english-tutor/0.1 (educational project)"
+# Wikimedia asks API clients for a User-Agent with contact info (a URL or email).
+# Set RAG_TUTOR_CONTACT to add yours, e.g. your GitHub repo URL.
+_CONTACT = os.environ.get("RAG_TUTOR_CONTACT", "").strip()
+USER_AGENT = f"rag-english-tutor/0.1 ({_CONTACT + '; ' if _CONTACT else ''}educational RAG project) httpx/{httpx.__version__}"
+RETRY_STATUS = {429, 500, 502, 503, 504}
+
+
+class FetchError(RuntimeError):
+    pass
+
+
+def get_json(client: httpx.Client, url: str, params: dict, retries: int = 5, backoff: float = 2.0,
+             sleep=time.sleep) -> dict:
+    """GET JSON with clear errors and retries on rate limits, server errors and lag.
+
+    Raises FetchError with the status and the start of the body when the reply is not JSON,
+    instead of a bare JSONDecodeError.
+    """
+    for attempt in range(retries + 1):
+        try:
+            r = client.get(url, params=params)
+        except httpx.TransportError as e:
+            if attempt == retries:
+                raise FetchError(f"network error for {url}: {e}") from e
+            sleep(backoff * 2 ** attempt)
+            continue
+        is_json = "json" in r.headers.get("content-type", "")
+        lagged = is_json and r.status_code == 200 and r.json().get("error", {}).get("code") == "maxlag"
+        if r.status_code in RETRY_STATUS or lagged:
+            if attempt == retries:
+                raise FetchError(f"{url} still failing after {retries} retries: HTTP {r.status_code}")
+            wait = float(r.headers.get("retry-after") or backoff * 2 ** attempt)
+            sleep(min(wait, 60))
+            continue
+        if r.status_code != 200 or not is_json:
+            snippet = r.text[:200].replace("\n", " ")
+            raise FetchError(f"HTTP {r.status_code} ({r.headers.get('content-type', '?')}) from {url}: {snippet}")
+        data = r.json()
+        if "error" in data:
+            raise FetchError(f"API error from {url}: {data['error']}")
+        return data
+    raise AssertionError("unreachable")
 
 
 def download(url: str, dest: Path) -> Path:
@@ -115,21 +159,37 @@ def parse_wikibooks_page(title: str, text: str, max_chars: int = 800, overlap: i
     return chunks
 
 
-def fetch_wikibooks(prefix: str = WIKIBOOKS_PREFIX, limit: int | None = None) -> Iterator[tuple[str, str]]:
-    """Yield (title, plain text) for pages whose title starts with `prefix`."""
-    headers = {"User-Agent": USER_AGENT}
-    params = {"action": "query", "list": "allpages", "apprefix": prefix, "apnamespace": 0,
-              "aplimit": 50, "format": "json"}
-    titles = []
-    while True:
-        data = httpx.get(WIKIBOOKS_API, params=params, headers=headers, timeout=30).json()
-        titles += [p["title"] for p in data["query"]["allpages"]]
-        if "continue" not in data or (limit and len(titles) >= limit):
-            break
-        params.update(data["continue"])
-    for title in titles[:limit] if limit else titles:
-        data = httpx.get(WIKIBOOKS_API, headers=headers, timeout=30, params={
-            "action": "query", "prop": "extracts", "explaintext": 1, "titles": title, "format": "json"}).json()
-        for page in data["query"]["pages"].values():
-            if page.get("extract"):
-                yield page["title"], page["extract"]
+def fetch_wikibooks(prefix: str = WIKIBOOKS_PREFIX, limit: int | None = None,
+                    client: httpx.Client | None = None, pause: float = 0.5) -> Iterator[tuple[str, str]]:
+    """Yield (title, plain text) for pages whose title starts with `prefix`.
+
+    Requests run one at a time with a short pause, as Wikimedia's API etiquette asks.
+    A page that keeps failing is skipped with a warning rather than stopping the ingest.
+    """
+    own = client is None
+    client = client or httpx.Client(headers={"User-Agent": USER_AGENT}, timeout=30, follow_redirects=True)
+    base = {"format": "json", "formatversion": 2, "maxlag": 5}
+    try:
+        params = {**base, "action": "query", "list": "allpages", "apprefix": prefix,
+                  "apnamespace": 0, "aplimit": 50}
+        titles: list[str] = []
+        while True:
+            data = get_json(client, WIKIBOOKS_API, params)
+            titles += [p["title"] for p in data["query"]["allpages"]]
+            if "continue" not in data or (limit and len(titles) >= limit):
+                break
+            params.update(data["continue"])
+        for title in titles[:limit] if limit else titles:
+            time.sleep(pause)
+            try:
+                data = get_json(client, WIKIBOOKS_API, {**base, "action": "query", "prop": "extracts",
+                                                        "explaintext": 1, "titles": title})
+            except FetchError as e:
+                print(f"warning: skipping Wikibooks page {title!r}: {e}", file=sys.stderr)
+                continue
+            for page in data["query"]["pages"]:
+                if page.get("extract"):
+                    yield page["title"], page["extract"]
+    finally:
+        if own:
+            client.close()
