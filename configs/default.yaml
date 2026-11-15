@@ -1,0 +1,12 @@
+llm:
+  base_url: http://localhost:11434
+  model: qwen2.5:7b
+embeddings:
+  model: BAAI/bge-m3
+retrieval:
+  qdrant_url: http://localhost:6333
+  collection: english_tutor
+  top_k: 5
+chunking:
+  max_chars: 800
+  overlap_chars: 100
