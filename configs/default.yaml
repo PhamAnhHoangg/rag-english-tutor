@@ -2,7 +2,11 @@ llm:
   base_url: http://localhost:11434
   model: qwen2.5:7b
 embeddings:
-  model: BAAI/bge-m3
+  # fastembed + bge-small-en-v1.5: fast on CPU. For a GPU, try backend: bge-m3, model: BAAI/bge-m3
+  # (changing the model changes the vector size: re-run ingest with --recreate).
+  backend: fastembed
+  model: BAAI/bge-small-en-v1.5
+  batch_size: 64
 retrieval:
   qdrant_url: http://localhost:6333
   collection: english_tutor

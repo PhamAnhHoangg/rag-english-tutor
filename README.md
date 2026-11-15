@@ -1,6 +1,6 @@
 # RAG English Tutor
 
-A study assistant that answers English grammar, vocabulary and usage questions from openly licensed sources, and cites the passage behind every answer. Everything runs locally and free: Ollama for the LLM, Qdrant for search, bge-m3 for embeddings.
+A study assistant that answers English grammar, vocabulary and usage questions from openly licensed sources, and cites the passage behind every answer. Everything runs locally and free: Ollama for the LLM, Qdrant for search, and bge-small-en-v1.5 via fastembed for embeddings (fast on CPU; bge-m3 is an option with a GPU).
 
 Later this becomes the core of a full language study app.
 
@@ -14,6 +14,9 @@ pip install -e ".[dev,ml]"           # add ,serve for the API and ,eval for MLfl
 python scripts/ingest.py --limit 2000 --chunks-only   # quick look, writes data/chunks.jsonl
 python scripts/ingest.py --limit 2000                 # small index for the baseline
 python scripts/ingest.py                              # everything (Wiktionary is ~2 GB)
+python scripts/ask.py "What is the difference between affect and effect?"
+python scripts/make_testset.py       # draft eval/questions.jsonl with the local LLM, then review it
+python scripts/eval_retrieval.py --name baseline
 uvicorn tutor.api:app --reload       # POST /ask {"question": "..."}
 pytest
 ```
@@ -25,13 +28,15 @@ Wikimedia asks API clients to identify themselves. Set `RAG_TUTOR_CONTACT` to a 
 | Path | What it holds |
 | --- | --- |
 | `src/tutor/sources.py` | Download and parse Wiktionary (kaikki.org), Tatoeba, Wikibooks |
-| `src/tutor/index.py` | Embed with bge-m3 and upsert into Qdrant |
+| `src/tutor/embed.py` | Embedding backends: fastembed (default, CPU) or bge-m3 (GPU) |
+| `src/tutor/index.py` | Embed chunks and upsert them into Qdrant |
 | `src/tutor/chunking.py` | Chunkers per source type (dictionary, sentences, grammar prose) |
 | `src/tutor/retrieval.py` | Retriever interface; dense, hybrid and reranked versions go here |
 | `src/tutor/llm.py` | LLM interface and the Ollama client |
 | `src/tutor/pipeline.py` | Retrieve, build a cited prompt, generate |
 | `src/tutor/api.py` | FastAPI app |
-| `eval/` | Test questions and retrieval metrics (recall@k, MRR) |
+| `src/tutor/testset.py` | Drafts test questions from sampled chunks with the local LLM |
+| `eval/` | Test questions, retrieval metrics (recall@k, MRR) and saved results |
 | `configs/default.yaml` | Model names, chunk sizes, top-k |
 
 ## Results

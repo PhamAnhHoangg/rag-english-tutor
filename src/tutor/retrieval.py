@@ -4,15 +4,32 @@ from typing import Protocol
 from tutor.chunking import Chunk
 
 
+
 class Retriever(Protocol):
     def search(self, query: str, k: int = 5) -> list[Chunk]: ...
 
 
-class DenseRetriever:
-    """Baseline: bge-m3 embeddings in Qdrant. TODO in the baseline milestone."""
+def payload_to_chunk(payload: dict) -> Chunk:
+    meta = {k: v for k, v in payload.items() if k not in {"text", "source", "ref"}}
+    return Chunk(payload["text"], payload["source"], payload["ref"], meta)
 
-    def __init__(self, qdrant_url: str, collection: str, embed_model: str):
-        self.qdrant_url, self.collection, self.embed_model = qdrant_url, collection, embed_model
+
+class DenseRetriever:
+    """Baseline: embed the query and take the nearest chunks from Qdrant."""
+
+    def __init__(self, qdrant_url: str, collection: str, embedder, client=None):
+        if client is None:
+            from qdrant_client import QdrantClient
+
+            client = QdrantClient(url=qdrant_url)
+        self.client, self.collection, self.embedder = client, collection, embedder
 
     def search(self, query: str, k: int = 5) -> list[Chunk]:
-        raise NotImplementedError("Implement in milestone 2 (baseline)")
+        vec = self.embedder.embed_query(query)
+        res = self.client.query_points(self.collection, query=vec, limit=k, with_payload=True)
+        chunks = []
+        for p in res.points:
+            c = payload_to_chunk(p.payload)
+            c.meta["score"] = p.score
+            chunks.append(c)
+        return chunks

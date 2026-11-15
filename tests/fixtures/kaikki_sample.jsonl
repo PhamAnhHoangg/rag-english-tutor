@@ -2,3 +2,6 @@
 {"word": "Affekt", "pos": "noun", "lang_code": "de", "senses": [{"glosses": ["affect"]}]}
 {"word": "effect", "pos": "noun", "lang_code": "en", "senses": [{"glosses": ["The result of an action."]}]}
 {"word": "empty", "pos": "adj", "lang_code": "en", "senses": [{"tags": ["form-of"]}]}
+{"word": "went", "pos": "verb", "lang_code": "en", "senses": [{"glosses": ["simple past of go"], "tags": ["form-of", "past"], "form_of": [{"word": "go"}]}]}
+{"word": "London", "pos": "name", "lang_code": "en", "senses": [{"glosses": ["The capital of the UK."]}]}
+{"word": "thou", "pos": "pron", "lang_code": "en", "senses": [{"glosses": ["You (singular)."], "tags": ["archaic"]}]}

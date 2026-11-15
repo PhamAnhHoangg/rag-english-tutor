@@ -4,11 +4,12 @@ from pydantic import BaseModel
 from tutor.config import load_config
 from tutor.llm import OllamaLLM
 from tutor.pipeline import answer
+from tutor.embed import make_embedder
 from tutor.retrieval import DenseRetriever
 
 cfg = load_config()
 llm = OllamaLLM(**cfg["llm"])
-retriever = DenseRetriever(cfg["retrieval"]["qdrant_url"], cfg["retrieval"]["collection"], cfg["embeddings"]["model"])
+retriever = DenseRetriever(cfg["retrieval"]["qdrant_url"], cfg["retrieval"]["collection"], make_embedder(cfg["embeddings"]))
 app = FastAPI(title="RAG English Tutor")
 
 

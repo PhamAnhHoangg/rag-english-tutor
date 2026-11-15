@@ -35,3 +35,20 @@ def test_chunk_ids_are_stable_and_batches_cover_all():
     chunks = list(parse_kaikki(open(FIX / "kaikki_sample.jsonl")))
     assert chunk_id(chunks[0]) == chunk_id(chunks[0]) != chunk_id(chunks[1])
     assert [len(b) for b in batched(chunks, 2)] == [2, 1]
+
+
+def test_kaikki_vocab_filter_and_skips():
+    chunks = list(parse_kaikki(open(FIX / "kaikki_sample.jsonl"), vocab={"effect", "went", "london", "thou"}))
+    assert [c.ref for c in chunks] == ["wiktionary:effect:noun"]
+
+
+def test_kaikki_max_senses():
+    assert len(list(parse_kaikki(open(FIX / "kaikki_sample.jsonl"), max_senses=1))) == 2
+
+
+def test_build_vocab_from_tatoeba_sentences():
+    from tutor.sources import build_vocab, tatoeba_sentences
+
+    lines = ["1\teng\tI don't affect it.\n", "2\tfra\tJe ne sais pas.\n", "3\teng\tI saw it.\n"]
+    assert build_vocab(tatoeba_sentences(lines), 2) == {"i", "it"}
+    assert "don't" in build_vocab(tatoeba_sentences(lines), 10) and "je" not in build_vocab(tatoeba_sentences(lines), 10)
