@@ -7,10 +7,13 @@ Later this becomes the core of a full language study app.
 ## Quick start
 
 ```bash
+conda create -n rag python=3.11 -y && conda activate rag   # fresh env: avoids clashes with base Anaconda packages
 docker compose up -d                 # Qdrant + Ollama
 docker exec -it ollama ollama pull qwen2.5:7b
-pip install -e ".[dev,ml,serve]"
-python scripts/ingest.py             # download, chunk, embed, index (TODO)
+pip install -e ".[dev,ml]"           # add ,serve for the API and ,eval for MLflow + Ragas later
+python scripts/ingest.py --limit 2000 --chunks-only   # quick look, writes data/chunks.jsonl
+python scripts/ingest.py --limit 2000                 # small index for the baseline
+python scripts/ingest.py                              # everything (Wiktionary is ~2 GB)
 uvicorn tutor.api:app --reload       # POST /ask {"question": "..."}
 pytest
 ```
@@ -19,6 +22,8 @@ pytest
 
 | Path | What it holds |
 | --- | --- |
+| `src/tutor/sources.py` | Download and parse Wiktionary (kaikki.org), Tatoeba, Wikibooks |
+| `src/tutor/index.py` | Embed with bge-m3 and upsert into Qdrant |
 | `src/tutor/chunking.py` | Chunkers per source type (dictionary, sentences, grammar prose) |
 | `src/tutor/retrieval.py` | Retriever interface; dense, hybrid and reranked versions go here |
 | `src/tutor/llm.py` | LLM interface and the Ollama client |
