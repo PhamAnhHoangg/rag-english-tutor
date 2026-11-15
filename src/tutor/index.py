@@ -30,16 +30,18 @@ class Indexer:
         self.collection = collection
         self.model = BGEM3FlagModel(embed_model, use_fp16=True)
 
-    def ensure_collection(self, dim: int = 1024) -> None:
+    def ensure_collection(self, dim: int = 1024, recreate: bool = False) -> None:
         from qdrant_client.models import Distance, VectorParams
 
+        if recreate and self.client.collection_exists(self.collection):
+            self.client.delete_collection(self.collection)
         if not self.client.collection_exists(self.collection):
             self.client.create_collection(self.collection, vectors_config=VectorParams(size=dim, distance=Distance.COSINE))
 
-    def index(self, chunks: Iterable[Chunk], batch_size: int = 64) -> int:
+    def index(self, chunks: Iterable[Chunk], batch_size: int = 64, recreate: bool = False) -> int:
         from qdrant_client.models import PointStruct
 
-        self.ensure_collection()
+        self.ensure_collection(recreate=recreate)
         total = 0
         for batch in batched(chunks, batch_size):
             vecs = self.model.encode([c.text for c in batch], batch_size=batch_size)["dense_vecs"]

@@ -81,30 +81,60 @@ def download(url: str, dest: Path) -> Path:
 
 # --- Wiktionary (kaikki.org JSONL, one entry per line) ---
 
-def parse_kaikki(lines: Iterable[str], limit: int | None = None) -> Iterator[Chunk]:
-    """English entries only. One chunk per sense: gloss plus up to two examples."""
+SKIP_POS = {"name", "character", "symbol", "punct", "prefix", "suffix", "infix", "affix", "phrase"}
+SKIP_TAGS = {"form-of", "alt-of", "obsolete", "archaic", "rare", "dated", "misspelling", "abbreviation"}
+
+
+def parse_kaikki(lines: Iterable[str], limit: int | None = None, vocab: set[str] | None = None,
+                 max_senses: int = 4) -> Iterator[Chunk]:
+    """English entries only. One chunk per sense: gloss plus up to two examples.
+
+    `vocab` keeps only those words (lowercase), so a learner-sized index holds common words
+    instead of whatever comes first in the file. Inflected forms, archaic/rare senses, proper
+    names and affixes are skipped, and each entry keeps at most `max_senses` senses.
+    """
     seen = 0
     for line in lines:
         entry = json.loads(line)
-        if entry.get("lang_code") != "en" or not entry.get("word"):
+        word, pos = entry.get("word"), entry.get("pos", "")
+        if entry.get("lang_code") != "en" or not word or pos in SKIP_POS:
             continue
-        word, pos = entry["word"], entry.get("pos", "")
+        if vocab is not None and word.lower() not in vocab:
+            continue
         senses = []
         for s in entry.get("senses", []):
             glosses = s.get("glosses") or []
-            if not glosses:
+            if not glosses or s.get("form_of") or s.get("alt_of") or SKIP_TAGS & set(s.get("tags", [])):
                 continue
             text = f"({pos}) {'; '.join(glosses)}" if pos else "; ".join(glosses)
             examples = [e["text"] for e in s.get("examples", []) if e.get("text")][:2]
             if examples:
                 text += " Examples: " + " / ".join(examples)
             senses.append(text)
+            if len(senses) >= max_senses:
+                break
         if not senses:
             continue
         yield from dictionary_entry(word, senses, "wiktionary", f"wiktionary:{word}:{pos}")
         seen += 1
         if limit and seen >= limit:
             return
+
+
+def build_vocab(sentences: Iterable[str], size: int) -> set[str]:
+    """The `size` most frequent words in English example sentences: a free, learner-focused word list."""
+    counts: dict[str, int] = {}
+    for text in sentences:
+        for w in re.findall(r"[a-z]+(?:'[a-z]+)?", text.lower()):
+            counts[w] = counts.get(w, 0) + 1
+    return {w for w, _ in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[:size]}
+
+
+def tatoeba_sentences(lines: Iterable[str]) -> Iterator[str]:
+    for line in lines:
+        parts = line.rstrip("\n").split("\t")
+        if len(parts) >= 3 and parts[1] == "eng":
+            yield parts[2]
 
 
 # --- Tatoeba (TSV: id <tab> lang <tab> text) ---
