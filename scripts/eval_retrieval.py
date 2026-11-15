@@ -8,6 +8,7 @@ from pathlib import Path
 
 from eval.run_retrieval import evaluate
 from tutor.config import load_config
+from tutor.embed import make_embedder
 from tutor.retrieval import DenseRetriever
 
 
@@ -21,7 +22,7 @@ def main() -> None:
     cfg = load_config(args.config)
     r = cfg["retrieval"]
     questions = [json.loads(line) for line in open(args.questions, encoding="utf-8") if line.strip()]
-    res = evaluate(DenseRetriever(r["qdrant_url"], r["collection"], cfg["embeddings"]["model"]), questions, k=args.k)
+    res = evaluate(DenseRetriever(r["qdrant_url"], r["collection"], make_embedder(cfg["embeddings"])), questions, k=args.k)
 
     out = Path("eval/results") / f"{args.name}.json"
     out.parent.mkdir(parents=True, exist_ok=True)

@@ -1,6 +1,6 @@
 # RAG English Tutor
 
-A study assistant that answers English grammar, vocabulary and usage questions from openly licensed sources, and cites the passage behind every answer. Everything runs locally and free: Ollama for the LLM, Qdrant for search, bge-m3 for embeddings.
+A study assistant that answers English grammar, vocabulary and usage questions from openly licensed sources, and cites the passage behind every answer. Everything runs locally and free: Ollama for the LLM, Qdrant for search, and bge-small-en-v1.5 via fastembed for embeddings (fast on CPU; bge-m3 is an option with a GPU).
 
 Later this becomes the core of a full language study app.
 
@@ -28,7 +28,8 @@ Wikimedia asks API clients to identify themselves. Set `RAG_TUTOR_CONTACT` to a 
 | Path | What it holds |
 | --- | --- |
 | `src/tutor/sources.py` | Download and parse Wiktionary (kaikki.org), Tatoeba, Wikibooks |
-| `src/tutor/index.py` | Embed with bge-m3 and upsert into Qdrant |
+| `src/tutor/embed.py` | Embedding backends: fastembed (default, CPU) or bge-m3 (GPU) |
+| `src/tutor/index.py` | Embed chunks and upsert them into Qdrant |
 | `src/tutor/chunking.py` | Chunkers per source type (dictionary, sentences, grammar prose) |
 | `src/tutor/retrieval.py` | Retriever interface; dense, hybrid and reranked versions go here |
 | `src/tutor/llm.py` | LLM interface and the Ollama client |

@@ -68,10 +68,11 @@ def main() -> None:
         print(f"Wrote {n} chunks to {out}")
         return
 
+    from tutor.embed import make_embedder
     from tutor.index import Indexer
 
     r = cfg["retrieval"]
-    n = Indexer(r["qdrant_url"], r["collection"], cfg["embeddings"]["model"]).index(logged(chunks), recreate=args.recreate)
+    n = Indexer(r["qdrant_url"], r["collection"], make_embedder(cfg["embeddings"])).index(logged(chunks), recreate=args.recreate)
     print(f"Indexed {n} chunks into {r['collection']}")
 
 

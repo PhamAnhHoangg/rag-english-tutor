@@ -20,7 +20,8 @@ class FakeQdrant:
 
 def test_dense_retriever_maps_payload_and_score():
     q = FakeQdrant()
-    r = DenseRetriever("unused", "english_tutor", encoder=lambda texts: [[0.1, 0.2]], client=q)
+    emb = SimpleNamespace(dim=2, embed_query=lambda text: [0.1, 0.2])
+    r = DenseRetriever("unused", "english_tutor", emb, client=q)
     [c] = r.search("what does run mean", k=3)
     assert q.calls == [("english_tutor", [0.1, 0.2], 3)]
     assert c.ref == "wiktionary:run:verb" and c.meta == {"sense": 0, "score": 0.9}
@@ -68,3 +69,32 @@ def test_sample_chunks_respects_counts_and_seed():
     chunks = [{"text": "x" * 50, "source": "tatoeba", "ref": str(i)} for i in range(20)]
     a = sample_chunks(chunks, {"tatoeba": 5, "wikibooks": 3}, seed=1)
     assert len(a) == 5 and a == sample_chunks(chunks, {"tatoeba": 5, "wikibooks": 3}, seed=1)
+
+
+def test_indexer_and_retriever_round_trip_in_memory_qdrant():
+    import pytest
+
+    qdrant_client = pytest.importorskip("qdrant_client")
+    from tutor.index import Indexer
+
+    vecs = {"affect: to influence": [1.0, 0.0], "cat: an animal": [0.0, 1.0]}
+    emb = SimpleNamespace(dim=2, embed_passages=lambda texts: [vecs[t] for t in texts],
+                          embed_query=lambda q: [0.9, 0.1])
+    client = qdrant_client.QdrantClient(":memory:")
+    chunks = [Chunk(t, "wiktionary", f"wiktionary:{t.split(':')[0]}:x") for t in vecs]
+    assert Indexer("unused", "t", emb, client=client).index(chunks) == 2
+    assert DenseRetriever("unused", "t", emb, client=client).search("q", k=1)[0].ref == "wiktionary:affect:x"
+
+    emb3 = SimpleNamespace(dim=3, embed_passages=lambda t: [], embed_query=lambda q: [])
+    with pytest.raises(SystemExit, match="--recreate"):
+        Indexer("unused", "t", emb3, client=client).index([])
+    assert Indexer("unused", "t", emb3, client=client).index([], recreate=True) == 0
+
+
+def test_make_embedder_rejects_unknown_backend():
+    import pytest
+
+    from tutor.embed import make_embedder
+
+    with pytest.raises(ValueError, match="unknown"):
+        make_embedder({"backend": "nope", "model": "x"})

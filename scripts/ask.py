@@ -7,6 +7,7 @@ import argparse
 from tutor.config import load_config
 from tutor.llm import OllamaLLM
 from tutor.pipeline import answer
+from tutor.embed import make_embedder
 from tutor.retrieval import DenseRetriever
 
 
@@ -18,7 +19,7 @@ def main() -> None:
     args = p.parse_args()
     cfg = load_config(args.config)
     r = cfg["retrieval"]
-    retriever = DenseRetriever(r["qdrant_url"], r["collection"], cfg["embeddings"]["model"])
+    retriever = DenseRetriever(r["qdrant_url"], r["collection"], make_embedder(cfg["embeddings"]))
 
     if args.sources_only:
         for i, c in enumerate(retriever.search(args.question, k=r["top_k"]), 1):

@@ -1,4 +1,4 @@
-"""Embed chunks with bge-m3 and upsert them into Qdrant. Needs the `ml` extras."""
+"""Embed chunks and upsert them into Qdrant. Needs the `ml` extras."""
 import uuid
 from collections.abc import Iterable, Iterator
 
@@ -22,20 +22,25 @@ def batched(items: Iterable[Chunk], size: int) -> Iterator[list[Chunk]]:
 
 
 class Indexer:
-    def __init__(self, qdrant_url: str, collection: str, embed_model: str = "BAAI/bge-m3"):
-        from FlagEmbedding import BGEM3FlagModel
-        from qdrant_client import QdrantClient
+    def __init__(self, qdrant_url: str, collection: str, embedder, client=None):
+        if client is None:
+            from qdrant_client import QdrantClient
 
-        self.client = QdrantClient(url=qdrant_url)
-        self.collection = collection
-        self.model = BGEM3FlagModel(embed_model, use_fp16=True)
+            client = QdrantClient(url=qdrant_url)
+        self.client, self.collection, self.embedder = client, collection, embedder
 
-    def ensure_collection(self, dim: int = 1024, recreate: bool = False) -> None:
+    def ensure_collection(self, recreate: bool = False) -> None:
         from qdrant_client.models import Distance, VectorParams
 
+        dim = self.embedder.dim
         if recreate and self.client.collection_exists(self.collection):
             self.client.delete_collection(self.collection)
-        if not self.client.collection_exists(self.collection):
+        if self.client.collection_exists(self.collection):
+            have = self.client.get_collection(self.collection).config.params.vectors.size
+            if have != dim:
+                raise SystemExit(f"Collection {self.collection!r} holds {have}-dim vectors but the embedder makes "
+                                 f"{dim}-dim ones (the embedding model changed). Re-run ingest with --recreate.")
+        else:
             self.client.create_collection(self.collection, vectors_config=VectorParams(size=dim, distance=Distance.COSINE))
 
     def index(self, chunks: Iterable[Chunk], batch_size: int = 64, recreate: bool = False) -> int:
@@ -44,12 +49,13 @@ class Indexer:
         self.ensure_collection(recreate=recreate)
         total = 0
         for batch in batched(chunks, batch_size):
-            vecs = self.model.encode([c.text for c in batch], batch_size=batch_size)["dense_vecs"]
+            vecs = self.embedder.embed_passages([c.text for c in batch])
             points = [
-                PointStruct(id=chunk_id(c), vector=v.tolist(),
+                PointStruct(id=chunk_id(c), vector=v,
                             payload={"text": c.text, "source": c.source, "ref": c.ref, **c.meta})
                 for c, v in zip(batch, vecs)
             ]
             self.client.upsert(self.collection, points)
             total += len(points)
+            print(f"indexed {total} chunks", flush=True)
         return total
