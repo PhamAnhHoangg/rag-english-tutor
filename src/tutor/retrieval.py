@@ -17,11 +17,11 @@ def payload_to_chunk(payload: dict) -> Chunk:
 class DenseRetriever:
     """Baseline: embed the query and take the nearest chunks from Qdrant."""
 
-    def __init__(self, qdrant_url: str, collection: str, embedder, client=None):
+    def __init__(self, qdrant_url: str, collection: str, embedder, client=None, timeout: int = 60):
         if client is None:
-            from qdrant_client import QdrantClient
+            from tutor.index import make_qdrant
 
-            client = QdrantClient(url=qdrant_url)
+            client = make_qdrant(qdrant_url, timeout)
         self.client, self.collection, self.embedder = client, collection, embedder
 
     def search(self, query: str, k: int = 5) -> list[Chunk]:

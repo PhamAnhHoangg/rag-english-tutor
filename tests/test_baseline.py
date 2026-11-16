@@ -98,3 +98,56 @@ def test_make_embedder_rejects_unknown_backend():
 
     with pytest.raises(ValueError, match="unknown"):
         make_embedder({"backend": "nope", "model": "x"})
+
+
+def test_with_retry_retries_timeouts_then_gives_up():
+    import httpx
+    import pytest
+
+    from tutor.index import with_retry
+
+    calls = []
+
+    def flaky():
+        calls.append(1)
+        if len(calls) < 3:
+            raise httpx.ReadTimeout("timed out")
+        return "ok"
+
+    waits = []
+    assert with_retry(flaky, sleep=waits.append) == "ok" and waits == [3.0, 6.0]
+
+    def always():
+        raise httpx.ReadTimeout("timed out")
+
+    with pytest.raises(SystemExit, match="docker compose ps"):
+        with_retry(always, attempts=2, sleep=lambda s: None)
+
+
+def test_create_retry_does_not_fail_if_first_create_landed():
+    import httpx
+    import pytest
+
+    qdrant_client = pytest.importorskip("qdrant_client")
+    from tutor.index import Indexer
+
+    real = qdrant_client.QdrantClient(":memory:")
+
+    class SlowCreate:
+        """Creates the collection but reports a timeout, like a slow Docker volume."""
+        def __getattr__(self, name):
+            return getattr(real, name)
+
+        def create_collection(self, *a, **kw):
+            real.create_collection(*a, **kw)
+            raise httpx.ReadTimeout("timed out")
+
+    emb = SimpleNamespace(dim=2, embed_passages=lambda t: [], embed_query=lambda q: [])
+    import tutor.index as idx
+    orig = idx.time.sleep
+    idx.time.sleep = lambda s: None
+    try:
+        Indexer("unused", "t", emb, client=SlowCreate()).ensure_collection()
+    finally:
+        idx.time.sleep = orig
+    assert real.collection_exists("t")
