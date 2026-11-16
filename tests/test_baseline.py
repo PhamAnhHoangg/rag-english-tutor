@@ -1,7 +1,7 @@
 import json
 from types import SimpleNamespace
 
-from eval.run_retrieval import evaluate, unique_refs
+from tutor.evaluation import evaluate, unique_refs
 from tutor.chunking import Chunk
 from tutor.retrieval import DenseRetriever, payload_to_chunk
 from tutor.testset import generate, parse_reply, sample_chunks

@@ -7,6 +7,12 @@ import os
 from typing import Protocol
 
 
+def default_cache_dir() -> str | None:
+    """Keep fastembed's model files under HF_HOME (on E: for Hai), not the system temp dir."""
+    return os.environ.get("FASTEMBED_CACHE_PATH") or (
+        os.path.join(os.environ["HF_HOME"], "fastembed") if os.environ.get("HF_HOME") else None)
+
+
 class Embedder(Protocol):
     dim: int
 
@@ -21,9 +27,7 @@ class FastEmbedder:
     def __init__(self, model: str = "BAAI/bge-small-en-v1.5", batch_size: int = 64, cache_dir: str | None = None):
         from fastembed import TextEmbedding
 
-        cache_dir = cache_dir or os.environ.get("FASTEMBED_CACHE_PATH") or (
-            os.path.join(os.environ["HF_HOME"], "fastembed") if os.environ.get("HF_HOME") else None)
-        self.model = TextEmbedding(model_name=model, cache_dir=cache_dir)
+        self.model = TextEmbedding(model_name=model, cache_dir=cache_dir or default_cache_dir())
         self.batch_size = batch_size
         self.dim = len(self.embed_query("probe"))
 

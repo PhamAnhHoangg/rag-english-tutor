@@ -6,10 +6,14 @@ Examples:
   python scripts/ingest.py --vocab 5000 --recreate      # common words only, rebuild the index
   python scripts/ingest.py                               # everything (Wiktionary is a ~2 GB download)
 """
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))  # works without PYTHONPATH or pip install -e
+
 import argparse
 import itertools
 import json
-from pathlib import Path
 
 from tutor import sources
 from tutor.config import load_config
