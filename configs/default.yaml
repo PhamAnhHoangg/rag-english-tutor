@@ -1,6 +1,6 @@
 llm:
   base_url: http://localhost:11434
-  model: qwen2.5:7b
+  model: qwen2.5:3b
 embeddings:
   # fastembed + bge-small-en-v1.5: fast on CPU. For a GPU, try backend: bge-m3, model: BAAI/bge-m3
   # (changing the model changes the vector size: re-run ingest with --recreate).
@@ -11,6 +11,14 @@ retrieval:
   qdrant_url: http://localhost:6333
   collection: english_tutor
   top_k: 5
+  # dense | bm25 | hybrid | dense+rerank | hybrid+rerank  (compare them: scripts/eval_retrieval.py --ladder)
+  mode: hybrid+rerank
+  split_comparisons: true      # "affect vs effect": search each word, then interleave
+  chunks_path: data/chunks.jsonl   # BM25 is built from this file; ingest writes it
+  hybrid_depth: 50             # candidates from each of dense and BM25 before fusion
+  rrf_k: 60
+  reranker: Xenova/ms-marco-MiniLM-L-6-v2   # ~80 MB ONNX cross-encoder, CPU
+  rerank_candidates: 30
 chunking:
   max_chars: 800
   overlap_chars: 100

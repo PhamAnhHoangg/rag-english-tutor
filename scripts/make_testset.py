@@ -3,9 +3,13 @@
   python scripts/make_testset.py --wiktionary 25 --tatoeba 10 --wikibooks 15
 Then review eval/questions.jsonl by hand.
 """
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))  # works without PYTHONPATH or pip install -e
+
 import argparse
 import json
-from pathlib import Path
 
 from tutor.config import load_config
 from tutor.llm import OllamaLLM

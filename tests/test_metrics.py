@@ -1,4 +1,4 @@
-from eval.metrics import mrr, recall_at_k
+from tutor.evaluation import mrr, recall_at_k
 
 
 def test_recall_and_mrr():
